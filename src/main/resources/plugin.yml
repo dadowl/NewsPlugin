@@ -1,0 +1,8 @@
+name: NewsPlugin
+version: '${project.version}'
+main: dev.dadowl.newsplugin.NewsPlugin
+api-version: 1.18
+prefix: News
+authors: [ DadOwl ]
+description: A simple plugin for getting the latest news from a VK group
+website: https://dadowl.dev
