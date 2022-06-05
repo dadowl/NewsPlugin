@@ -21,8 +21,6 @@ public final class NewsPlugin extends JavaPlugin {
 
     public VkManager vkManager = null;
 
-    public static boolean ready = false;
-
     public NewsPlugin() {
         if (NewsPlugin.instance != null) {
             throw new Error("Plugin already initialized");
@@ -37,6 +35,8 @@ public final class NewsPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
+
+        getLogger().info(getDataFolder().toString());
 
         File cFile = new File(getDataFolder(), "config.yml");
         if (!cFile.exists()) {

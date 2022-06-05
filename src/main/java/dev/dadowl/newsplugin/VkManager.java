@@ -22,6 +22,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
+import java.util.UUID;
 
 public class VkManager {
 
@@ -31,7 +32,7 @@ public class VkManager {
     private final int VK_GROUP;
 
     private Connection connection;
-    private final String connectionUrl = "jdbc:sqlite:"+NewsPlugin.getInstance().getDataFolder()+"/database.db";
+    private final String connectionUrl = "jdbc:sqlite:" + NewsPlugin.getInstance().getDataFolder() + "/database.db";
 
     private String text = "";
     private int lastPostId = 0;
@@ -43,7 +44,7 @@ public class VkManager {
         VK_GROUP = conf.getInt("group_id");
     }
 
-    public void connect(){
+    public void connect() {
         try {
             Class.forName("org.sqlite.JDBC");
             connection = DriverManager.getConnection(connectionUrl);
@@ -54,15 +55,22 @@ public class VkManager {
             );
             ps.executeUpdate();
             connection.commit();
+
+            ps = connection.prepareStatement(
+                    "CREATE TABLE IF NOT EXISTS `PlayersSeenPost` (`uuid` varchar(36) PRIMARY KEY UNIQUE, `postId` integer);"
+            );
+            ps.executeUpdate();
+            connection.commit();
+
             setLastPostIdFromDB();
-        } catch (Exception e){
+        } catch (Exception e) {
             plugin.getLogger().severe("Не удалось подключиться к SQLite.");
             e.printStackTrace();
             return;
         }
     }
 
-    public void update(){
+    public void update() {
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
             TransportClient transportClient = new HttpTransportClient();
             VkApiClient vk = new VkApiClient(transportClient);
@@ -72,10 +80,10 @@ public class VkManager {
             GetResponse getResponse;
             try {
                 getResponse = vk.wall().get(actor)
-                    .ownerId(VK_GROUP)
-                    .count(1)
-                    .filter(GetFilter.OWNER)
-                .execute();
+                        .ownerId(VK_GROUP)
+                        .count(1)
+                        .filter(GetFilter.OWNER)
+                        .execute();
             } catch (ApiException | ClientException e) {
                 e.printStackTrace();
                 return;
@@ -83,9 +91,9 @@ public class VkManager {
 
             plugin.getLogger().info("Посты получены.");
 
-            if (getResponse.getItems().get(0).getId() != lastPostId){
+            if (getResponse.getItems().get(0).getId() != lastPostId) {
                 for (WallpostFull item : getResponse.getItems()) {
-                    if (item.getText().isEmpty()){
+                    if (item.getText().isEmpty()) {
                         for (Wallpost wallpost : item.getCopyHistory()) {
                             text = wallpost.getText();
                         }
@@ -102,7 +110,7 @@ public class VkManager {
         }, 0, 20 * 60);
     }
 
-    public ItemStack getNewsBook(){
+    public ItemStack getNewsBook() {
         ItemStack item = new ItemStack(Material.WRITTEN_BOOK);
         BookMeta meta = (BookMeta) item.getItemMeta();
 
@@ -122,7 +130,7 @@ public class VkManager {
                 q = 0;
             }
 
-            if (q == lines-3 || q == lines-2 || q == lines-1){
+            if (q == lines - 3 || q == lines - 2 || q == lines - 1) {
                 s = s.replaceFirst("\n\n", "\n");
             }
 
@@ -131,7 +139,7 @@ public class VkManager {
             q++;
         }
 
-        if (page.length() > 0){
+        if (page.length() > 0) {
             pages.add(Component.text(page.toString()));
         }
 
@@ -141,18 +149,18 @@ public class VkManager {
         return item;
     }
 
-    private void setLastPostIdFromDB(){
+    private void setLastPostIdFromDB() {
         try {
             PreparedStatement ps = connection.prepareStatement(
                     "SELECT * FROM VKposts ORDER BY postId desc LIMIT 1;"
             );
             ResultSet result = ps.executeQuery();
-            while (result.next()){
+            while (result.next()) {
                 lastPostId = result.getInt("postId");
                 text = result.getString("postText");
                 return;
             }
-        } catch (Exception e){
+        } catch (Exception e) {
             plugin.getLogger().severe("Ошибка при получении последнего поста.");
             e.printStackTrace();
         }
@@ -160,16 +168,55 @@ public class VkManager {
         return;
     }
 
-    private void addPost(int id, String text){
-       try {
-           PreparedStatement ps = connection.prepareStatement(
-                   "INSERT INTO `VKposts` VALUES ("+id+",'"+text+"');"
-           );
-           ps.executeUpdate();
-           connection.commit();
-       } catch (Exception e){
-           plugin.getLogger().severe("Ошибка при сохранении поста.");
-           e.printStackTrace();
-       }
+    private void addPost(int id, String text) {
+        try {
+            PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO `VKposts` VALUES (" + id + ",'" + text + "');"
+            );
+            ps.executeUpdate();
+            connection.commit();
+        } catch (Exception e) {
+            plugin.getLogger().severe("Ошибка при сохранении поста.");
+            e.printStackTrace();
+        }
+    }
+
+    private Boolean isPlayerSeenPost(UUID uuid, int id) {
+        try {
+            PreparedStatement ps = connection.prepareStatement(
+                    "SELECT * FROM PlayersSeenPost WHERE uuid = '" + uuid.toString() + "' ORDER BY postId desc LIMIT 1;"
+            );
+            ResultSet result = ps.executeQuery();
+            while (result.next()) {
+                if (result.getInt("postId") == id) return true;
+            }
+        } catch (Exception e) {
+            plugin.getLogger().severe("Ошибка при получении последнего поста для игрока.");
+            e.printStackTrace();
+        }
+
+        return false;
+    }
+
+    public Boolean isPlayerSeenLastPost(UUID uuid) {
+        return isPlayerSeenPost(uuid, lastPostId);
+    }
+
+    private void setPlayerSeen(UUID uuid, int id) {
+        try {
+            PreparedStatement ps = connection.prepareStatement(
+                    "INSERT OR REPLACE INTO PlayersSeenPost (uuid, postId) " +
+                            "VALUES('" + uuid.toString() + "', " + id + ")"
+            );
+            ps.executeUpdate();
+            connection.commit();
+        } catch (Exception e) {
+            plugin.getLogger().severe("Ошибка при сохранении поста для игрока.");
+            e.printStackTrace();
+        }
+    }
+
+    public void setPlayerSeenLastPost(UUID uuid) {
+        setPlayerSeen(uuid, lastPostId);
     }
 }

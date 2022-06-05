@@ -1,5 +1,6 @@
 package dev.dadowl.newsplugin;
 
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -14,7 +15,13 @@ public class Handler implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent e){
-        if (!NewsPlugin.ready) return;
-        //open book with last post
+
+        Player player = e.getPlayer();
+
+        if (!plugin.vkManager.isPlayerSeenLastPost(player.getUniqueId())){
+            player.openBook(plugin.vkManager.getNewsBook());
+            plugin.vkManager.setPlayerSeenLastPost(player.getUniqueId());
+        }
+
     }
 }
