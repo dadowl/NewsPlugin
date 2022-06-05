@@ -8,7 +8,7 @@ import org.bukkit.plugin.java.annotation.command.Commands;
 import org.jetbrains.annotations.NotNull;
 
 @Commands(
-    @org.bukkit.plugin.java.annotation.command.Command(name = "news", usage = "/<command>")
+    @org.bukkit.plugin.java.annotation.command.Command(name = "news", usage = "/<command>", desc = "Show last post from VK group")
 )
 
 public class NewsCommand implements CommandExecutor {
