@@ -35,9 +35,6 @@ public final class NewsPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
-
-        getLogger().info(getDataFolder().toString());
-
         File cFile = new File(getDataFolder(), "config.yml");
         if (!cFile.exists()) {
             this.getConfig().options().copyDefaults(true);
@@ -47,7 +44,6 @@ public final class NewsPlugin extends JavaPlugin {
         ConfigurationSection vk = getConfig().getConfigurationSection("vk");
 
         if (vk == null
-            || vk.getInt("app_id") == 0
             || vk.getString("secret_key") == null
             || vk.getInt("group_id") == 0)
         {

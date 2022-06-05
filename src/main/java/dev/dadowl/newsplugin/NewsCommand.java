@@ -25,7 +25,7 @@ public class NewsCommand implements CommandExecutor {
 
         Player player = (Player) sender;
 
-        player.openBook(plugin.vkManager.getNewsBook());
+        player.openBook(plugin.vkManager.newsBook);
 
         return true;
     }

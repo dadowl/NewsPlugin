@@ -1,22 +1,21 @@
 package dev.dadowl.newsplugin;
 
-import com.vk.api.sdk.client.TransportClient;
-import com.vk.api.sdk.client.VkApiClient;
-import com.vk.api.sdk.client.actors.ServiceActor;
-import com.vk.api.sdk.exceptions.ApiException;
-import com.vk.api.sdk.exceptions.ClientException;
-import com.vk.api.sdk.httpclient.HttpTransportClient;
-import com.vk.api.sdk.objects.wall.GetFilter;
-import com.vk.api.sdk.objects.wall.Wallpost;
-import com.vk.api.sdk.objects.wall.WallpostFull;
-import com.vk.api.sdk.objects.wall.responses.GetResponse;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import net.kyori.adventure.text.Component;
+import org.apache.commons.io.IOUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -27,7 +26,6 @@ import java.util.UUID;
 public class VkManager {
 
     private final NewsPlugin plugin;
-    private final int VK_APP;
     private final String VK_SECRET;
     private final int VK_GROUP;
 
@@ -37,9 +35,10 @@ public class VkManager {
     private String text = "";
     private int lastPostId = 0;
 
+    public ItemStack newsBook = null;
+
     public VkManager(NewsPlugin newsPlugin, ConfigurationSection conf) {
         this.plugin = newsPlugin;
-        VK_APP = conf.getInt("app_id");
         VK_SECRET = conf.getString("secret_key");
         VK_GROUP = conf.getInt("group_id");
     }
@@ -72,40 +71,39 @@ public class VkManager {
 
     public void update() {
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
-            TransportClient transportClient = new HttpTransportClient();
-            VkApiClient vk = new VkApiClient(transportClient);
+            String requestUrl = "https://api.vk.com/method/wall.get?owner_id="+VK_GROUP+"&count=1" +
+                    "&filter=owner&access_token="+VK_SECRET+"&v=5.131";
+            try{
+                URL obj = new URL(requestUrl);
+                HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
+                connection.setRequestProperty("Content-Type", "charset=utf-8");
+                connection.setRequestMethod("GET");
 
-            ServiceActor actor = new ServiceActor(VK_APP, VK_SECRET);
+                BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8));
+                String response = IOUtils.toString(connection.getInputStream(), StandardCharsets.UTF_8);
+                in.close();
 
-            GetResponse getResponse;
-            try {
-                getResponse = vk.wall().get(actor)
-                        .ownerId(VK_GROUP)
-                        .count(1)
-                        .filter(GetFilter.OWNER)
-                        .execute();
-            } catch (ApiException | ClientException e) {
-                e.printStackTrace();
-                return;
-            }
-
-            plugin.getLogger().info("Посты получены.");
-
-            if (getResponse.getItems().get(0).getId() != lastPostId) {
-                for (WallpostFull item : getResponse.getItems()) {
-                    if (item.getText().isEmpty()) {
-                        for (Wallpost wallpost : item.getCopyHistory()) {
-                            text = wallpost.getText();
+                JsonObject json = new Gson().fromJson(response, JsonObject.class);
+                JsonArray items = json.get("response").getAsJsonObject().get("items").getAsJsonArray();
+                if (!items.isEmpty()) {
+                    plugin.getLogger().info("Посты получены.");
+                    JsonObject post = items.get(0).getAsJsonObject();
+                    if (post.get("id").getAsInt() != lastPostId){
+                        String postText = post.get("text").getAsString();
+                        if (postText.isEmpty()){
+                            postText = post.get("copy_history").getAsJsonArray().get(0).getAsJsonObject().get("text").getAsString();
                         }
+                        text = postText;
+                        lastPostId = post.get("id").getAsInt();
+                        addPost(lastPostId, text);
+                        plugin.getLogger().info("В группе вышел новый пост, обновляем его в плагине.");
+                        newsBook = getNewsBook();
                     } else {
-                        text = item.getText();
+                        plugin.getLogger().info("Новые посты отсутствуют.");
                     }
                 }
-                lastPostId = getResponse.getItems().get(0).getId();
-                addPost(getResponse.getItems().get(0).getId(), text);
-                plugin.getLogger().info("В группе вышел новый пост, обновляем его в плагине.");
-            } else {
-                plugin.getLogger().info("Новые посты отсутствуют.");
+            } catch (Exception e){
+                e.printStackTrace();
             }
         }, 0, 20 * 3600);
     }
@@ -130,8 +128,11 @@ public class VkManager {
                 q = 0;
             }
 
-            if (q == lines - 3 || q == lines - 2 || q == lines - 1) {
+            if (q == lines - 3 || q == lines - 2) {
                 s = s.replaceFirst("\n\n", "\n");
+            }
+            if (q == lines - 1){
+                s = s.replaceFirst("\n\n", "");
             }
 
             page.append(s);
@@ -158,6 +159,7 @@ public class VkManager {
             while (result.next()) {
                 lastPostId = result.getInt("postId");
                 text = result.getString("postText");
+                newsBook = getNewsBook();
                 return;
             }
         } catch (Exception e) {

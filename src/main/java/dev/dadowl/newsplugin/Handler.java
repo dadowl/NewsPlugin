@@ -19,7 +19,7 @@ public class Handler implements Listener {
         Player player = e.getPlayer();
 
         if (!plugin.vkManager.isPlayerSeenLastPost(player.getUniqueId())){
-            player.openBook(plugin.vkManager.getNewsBook());
+            player.openBook(plugin.vkManager.newsBook);
             plugin.vkManager.setPlayerSeenLastPost(player.getUniqueId());
         }
 
