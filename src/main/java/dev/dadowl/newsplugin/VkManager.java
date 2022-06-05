@@ -107,7 +107,7 @@ public class VkManager {
             } else {
                 plugin.getLogger().info("Новые посты отсутствуют.");
             }
-        }, 0, 20 * 60);
+        }, 0, 20 * 3600);
     }
 
     public ItemStack getNewsBook() {
