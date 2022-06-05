@@ -17,6 +17,10 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 
 public class VkManager {
@@ -26,7 +30,11 @@ public class VkManager {
     private final String VK_SECRET;
     private final int VK_GROUP;
 
+    private Connection connection;
+    private final String connectionUrl = "jdbc:sqlite:"+NewsPlugin.getInstance().getDataFolder()+"/database.db";
+
     private String text = "";
+    private int lastPostId = 0;
 
     public VkManager(NewsPlugin newsPlugin, ConfigurationSection conf) {
         this.plugin = newsPlugin;
@@ -35,8 +43,27 @@ public class VkManager {
         VK_GROUP = conf.getInt("group_id");
     }
 
+    public void connect(){
+        try {
+            Class.forName("org.sqlite.JDBC");
+            connection = DriverManager.getConnection(connectionUrl);
+            connection.setAutoCommit(false);
+
+            PreparedStatement ps = connection.prepareStatement(
+                    "CREATE TABLE IF NOT EXISTS `VKposts` (`postId` integer PRIMARY KEY, `postText` text);"
+            );
+            ps.executeUpdate();
+            connection.commit();
+            setLastPostIdFromDB();
+        } catch (Exception e){
+            plugin.getLogger().severe("Не удалось подключиться к SQLite.");
+            e.printStackTrace();
+            return;
+        }
+    }
+
     public void update(){
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
             TransportClient transportClient = new HttpTransportClient();
             VkApiClient vk = new VkApiClient(transportClient);
 
@@ -54,16 +81,25 @@ public class VkManager {
                 return;
             }
 
-            for (WallpostFull item : getResponse.getItems()) {
-                if (item.getText().isEmpty()){
-                    for (Wallpost wallpost : item.getCopyHistory()) {
-                        text = wallpost.getText();
+            plugin.getLogger().info("Посты получены.");
+
+            if (getResponse.getItems().get(0).getId() != lastPostId){
+                for (WallpostFull item : getResponse.getItems()) {
+                    if (item.getText().isEmpty()){
+                        for (Wallpost wallpost : item.getCopyHistory()) {
+                            text = wallpost.getText();
+                        }
+                    } else {
+                        text = item.getText();
                     }
-                } else {
-                    text = item.getText();
                 }
+                lastPostId = getResponse.getItems().get(0).getId();
+                addPost(getResponse.getItems().get(0).getId(), text);
+                plugin.getLogger().info("В группе вышел новый пост, обновляем его в плагине.");
+            } else {
+                plugin.getLogger().info("Новые посты отсутствуют.");
             }
-        });
+        }, 0, 20 * 60);
     }
 
     public ItemStack getNewsBook(){
@@ -105,4 +141,35 @@ public class VkManager {
         return item;
     }
 
+    private void setLastPostIdFromDB(){
+        try {
+            PreparedStatement ps = connection.prepareStatement(
+                    "SELECT * FROM VKposts ORDER BY postId desc LIMIT 1;"
+            );
+            ResultSet result = ps.executeQuery();
+            while (result.next()){
+                lastPostId = result.getInt("postId");
+                text = result.getString("postText");
+                return;
+            }
+        } catch (Exception e){
+            plugin.getLogger().severe("Ошибка при получении последнего поста.");
+            e.printStackTrace();
+        }
+
+        return;
+    }
+
+    private void addPost(int id, String text){
+       try {
+           PreparedStatement ps = connection.prepareStatement(
+                   "INSERT INTO `VKposts` VALUES ("+id+",'"+text+"');"
+           );
+           ps.executeUpdate();
+           connection.commit();
+       } catch (Exception e){
+           plugin.getLogger().severe("Ошибка при сохранении поста.");
+           e.printStackTrace();
+       }
+    }
 }

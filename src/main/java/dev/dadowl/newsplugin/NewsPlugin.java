@@ -57,6 +57,7 @@ public final class NewsPlugin extends JavaPlugin {
         }
 
         vkManager = new VkManager(this, vk);
+        vkManager.connect();
         vkManager.update();
 
         getCommand("news").setExecutor(new NewsCommand(this));
