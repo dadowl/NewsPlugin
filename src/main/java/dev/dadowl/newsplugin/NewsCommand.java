@@ -3,6 +3,7 @@ package dev.dadowl.newsplugin;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.annotation.command.Commands;
 import org.jetbrains.annotations.NotNull;
 
@@ -20,8 +21,12 @@ public class NewsCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+        if (!(sender instanceof Player)) return true;
 
+        Player player = (Player) sender;
 
-        return false;
+        player.openBook(plugin.vkManager.getNewsBook());
+
+        return true;
     }
 }

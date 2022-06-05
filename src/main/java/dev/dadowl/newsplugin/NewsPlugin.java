@@ -19,7 +19,7 @@ public final class NewsPlugin extends JavaPlugin {
 
     public static NewsPlugin instance = null;
 
-    public static VkManager vkManager = null;
+    public VkManager vkManager = null;
 
     public static boolean ready = false;
 
